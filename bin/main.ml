@@ -226,32 +226,118 @@ let toTest = "AB&C|"
 (* let () = print_bool (rev "011|&");print_endline "" *)
 let () = print_truth toTest
 
+let () = print_endline ""
+let () = print_endline "NNF"
+
+
+type 'a btree =
+  | Empty
+  | Node of 'a * 'a btree * 'a btree
+
+
+  let remove_one_stack stack = 
+    match stack with
+    | a :: rest -> (a,rest)
+    | _ -> failwith "Stack vide"
+
+  let remove_two_stack stack = 
+    match stack with
+    | a :: b :: rest -> (a,b,rest)
+    | _ -> failwith "Stack vide"
+
+let newNode value l r: char btree = Node (value, l, r)
+
+let btree_construct (a: string): char btree=
+  let rec btree_construct_rec (a: string) (i: int) (stack: char btree list): char btree =
+    if (i < String.length a)
+    then (
+      if (is_maj a.[i])
+      then btree_construct_rec a (i + 1) ((newNode a.[i] Empty Empty) :: stack)
+      else if a.[i] = '!'
+        then let (first, rest) = remove_one_stack stack in btree_construct_rec a (i + 1) ((newNode a.[i] first Empty) :: rest)
+        else let (first, second, rest) = remove_two_stack stack in btree_construct_rec a (i + 1) ((newNode a.[i] first second) :: rest)
+          )
+      else List.hd stack
+          in btree_construct_rec a 0 []
+
+
+let print_btree (to_str : 'a -> string) (t : 'a btree) : unit =
+  let rec aux prefix is_left = function
+    | Empty ->
+        Printf.printf "%s%s∅\n" prefix (if is_left then "├── " else "└── ")
+    | Node (v, l, r) ->
+        Printf.printf "%s%s%s\n" prefix (if is_left then "├── " else "└── ") (to_str v);
+        let prefix' = prefix ^ (if is_left then "│   " else "    ") in
+        (* On affiche d’abord le sous-arbre droit, puis gauche (ça fait un rendu plus lisible) *)
+        aux prefix' true  r;
+        aux prefix' false l
+  in
+  match t with
+  | Empty -> print_endline "∅"
+  | Node (v, l, r) ->
+      Printf.printf "%s\n" (to_str v);
+      aux "" true  r;
+      aux "" false l
+
+let char_to_string c =
+  String.make 1 c
+
+(* (A = B) = ((A > B) & (B > A)) *)
+
+(* let rec remove_equivalence (btree: char btree): char btree =  *)
+(*   match btree with *)
+(*   | Node (v, l, r)-> if v = '=' then Node ('&', Node ('>', remove_equivalence l, remove_equivalence r), Node ('>', remove_equivalence r, remove_equivalence l)) else Node (v, remove_equivalence l, remove_equivalence r) *)
+(*   | Empty -> Empty *)
+
+(* (A > B) = (!A | B) *)
+let rec remove_implication (btree: char btree): char btree = 
+  match btree with
+  | Node (v, l, r)-> if v = '>' then Node ('|', remove_implication l, Node ('!', remove_implication r, Empty)) else Node (v, remove_implication l, remove_implication r)
+  | Empty -> Empty
+
+let btree_to_RPN (btree: char btree):string = 
+  let rec btree_to_RPN_rec btree =
+  match btree with
+  | Node (v, l, r) ->
+      (btree_to_RPN_rec r) ^
+      (btree_to_RPN_rec l) ^
+      (String.make 1 v)
+  | Empty -> ""
+  in btree_to_RPN_rec btree
+let remove_nor_nand_not (btree: char btree): char btree = 
+  match btree with
+  | Node (v, l, r)->
+      if v = '!'
+      then l
+      else
+        if v = '|'
+        then Node ('&',Node ('!', l, Empty) , Node ('!', r, Empty))
+        else
+          if v = '&'
+        then (Node ('|',Node ('!', l, Empty) , Node ('!', r, Empty)))
+          else btree
+  | Empty -> Empty
+
+let rec remove_not (btree: char btree): char btree = 
+  match btree with
+  | Node (v, l, _)-> if v = '!' then remove_not (remove_nor_nand_not l) else btree
+  | Empty -> Empty
 
 
 
+let test = "AB>"
+let () = print_endline test
+let () = print_btree char_to_string (btree_construct test)
+let () = print_btree char_to_string (remove_implication(btree_construct test))
+let () = print_endline (btree_to_RPN (btree_construct test))
+let () = print_endline (btree_to_RPN (remove_implication (btree_construct test)))
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+let test = "AB&!"
+let () = print_endline test
+let () = print_btree char_to_string (btree_construct test)
+let () = print_btree char_to_string (remove_not(btree_construct test))
+let () = print_endline (btree_to_RPN (btree_construct test))
+let () = print_endline (btree_to_RPN (remove_not (btree_construct test)))
 
 
 
