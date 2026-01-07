@@ -1,0 +1,4 @@
+(lang dune 3.20)
+(name ready_set_bool)
+(sections (lib .) (bin ../../bin))
+(files (lib (META dune-package opam)) (bin (ready_set_bool)))
