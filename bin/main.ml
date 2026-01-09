@@ -201,9 +201,9 @@ let calc bin letter formula =
 
 (* let print_truth (formula: string) (arg: string) =  *)
 let print_truth (formula: string) = 
-  print_truth_line "ABC=";
-  print_truth_mid_line "ABC=";
   let arg = sort_string (find_unique (find_letter formula)) in
+  print_truth_line (arg ^ String.make 1 '=');
+  print_truth_mid_line (arg ^ String.make 1 '=');
 
 
   let rec print_truth_rec i =
@@ -217,13 +217,6 @@ let print_truth (formula: string) =
 
 
 let toTest = "AB&C|"
-(* let () = print_endline toTest *)
-(* let bT = int_to_bin_str 3l 3 *)
-(* let () = print_endline bT *)
-(* let letterT =  sort_string (find_unique (find_letter toTest)) *)
-(* let () = print_endline letterT *)
-(* let () = print_endline (calc bT letterT toTest) *)
-(* let () = print_bool (rev "011|&");print_endline "" *)
 let () = print_truth toTest
 
 let () = print_endline ""
@@ -282,12 +275,26 @@ let print_btree (to_str : 'a -> string) (t : 'a btree) : unit =
 let char_to_string c =
   String.make 1 c
 
-(* (A = B) = ((A > B) & (B > A)) *)
+(* (A = B) = ((!A & !B) | (A & B)) *)
 
-(* let rec remove_equivalence (btree: char btree): char btree =  *)
-(*   match btree with *)
-(*   | Node (v, l, r)-> if v = '=' then Node ('&', Node ('>', remove_equivalence l, remove_equivalence r), Node ('>', remove_equivalence r, remove_equivalence l)) else Node (v, remove_equivalence l, remove_equivalence r) *)
-(*   | Empty -> Empty *)
+let rec remove_equivalence (btree: char btree): char btree = 
+  match btree with
+  | Node (v, l, r)->(
+    if v = '='
+    then Node ('|', Node ('&', remove_equivalence (Node ('!', l, Empty)), remove_equivalence (Node ('!', r , Empty))), Node ('&', remove_equivalence l, remove_equivalence r))
+    else Node (v, remove_equivalence l, remove_equivalence r))
+  | Empty -> Empty
+
+  (* A B ^  =  (A & !B) | (!A & B) *)
+
+  let rec remove_xor (btree: char btree): char btree = 
+  match btree with
+  | Node (v, l, r)->(
+    if v = '^'
+    then Node ('|', Node ('&', remove_xor l, remove_xor (Node ('!', r , Empty))), Node ('&', remove_xor (Node ('!', l, Empty)), remove_xor r))
+    else Node (v, remove_xor l, remove_xor r))
+  | Empty -> Empty
+
 
 (* (A > B) = (!A | B) *)
 let rec remove_implication (btree: char btree): char btree = 
@@ -304,58 +311,147 @@ let btree_to_RPN (btree: char btree):string =
       (String.make 1 v)
   | Empty -> ""
   in btree_to_RPN_rec btree
-let remove_nor_nand_not (btree: char btree): char btree = 
+
+
+let rec remove_nor_nand_not (btree: char btree): char btree = 
   match btree with
-  | Node (v, l, r)->
-      if v = '!'
-      then l
-      else
-        if v = '|'
-        then Node ('&',Node ('!', l, Empty) , Node ('!', r, Empty))
-        else
-          if v = '&'
-        then (Node ('|',Node ('!', l, Empty) , Node ('!', r, Empty)))
-          else btree
+  | Node ('!', l, _)-> (
+    let l = remove_nor_nand_not l in
+      match l with
+    | Node ('!', el, _)-> remove_nor_nand_not el
+    | Node ('|', el, er)-> Node ('&',remove_nor_nand_not (Node ('!', el, Empty)) , remove_nor_nand_not (Node ('!', er, Empty)))
+    | Node ('&', el, er)-> (Node ('|',remove_nor_nand_not (Node ('!', el, Empty)) , remove_nor_nand_not (Node ('!', er, Empty))))
+    | Empty -> Empty
+    | _ -> Node ('!', l, Empty)
+  )
   | Empty -> Empty
-
-let rec remove_not (btree: char btree): char btree = 
-  match btree with
-  | Node (v, l, _)-> if v = '!' then remove_not (remove_nor_nand_not l) else btree
-  | Empty -> Empty
+  | Node (v, l, r) -> Node (v, remove_nor_nand_not l, remove_nor_nand_not r)
 
 
-
-let test = "AB>"
+let test = "AB|C&!"
 let () = print_endline test
 let () = print_btree char_to_string (btree_construct test)
-let () = print_btree char_to_string (remove_implication(btree_construct test))
+let () = print_btree char_to_string (remove_nor_nand_not (remove_implication(remove_equivalence (btree_construct test))))
 let () = print_endline (btree_to_RPN (btree_construct test))
-let () = print_endline (btree_to_RPN (remove_implication (btree_construct test)))
+let () = print_endline (btree_to_RPN (remove_nor_nand_not (remove_implication(remove_equivalence (btree_construct test)))))
 
-let test = "AB&!"
+
+let nnf str = btree_to_RPN (remove_nor_nand_not (remove_implication (remove_equivalence (remove_xor(btree_construct str)))))
+
+
+let test = "ABC&&!"
 let () = print_endline test
-let () = print_btree char_to_string (btree_construct test)
-let () = print_btree char_to_string (remove_not(btree_construct test))
-let () = print_endline (btree_to_RPN (btree_construct test))
-let () = print_endline (btree_to_RPN (remove_not (btree_construct test)))
+let () = print_endline (nnf test)
+let () = print_endline ""
+
+let test = "AB^C>D|"
+let () = print_endline test
+let () = print_endline (nnf test)
+let () = print_endline ""
+
+let test = "AB=CD|&"
+let () = print_endline test
+let () = print_endline (nnf test)
+let () = print_endline ""
+
+
+
+let rec distrib (btree: char btree): char btree = 
+  match btree with
+  | Empty -> Empty
+  | Node ('|', l, r)-> (
+    let l = distrib l in
+    let r = distrib r in
+    match l with
+    | Node ('&', el, er)-> Node ('&', distrib (Node ('|', el, r)), distrib (Node ('|', er, r)))
+    | _ ->
+      match r with
+      | Node ('&', el, er)-> Node ('&', distrib (Node ('|', l, el)), distrib (Node ('|', l, er)))
+      | _ -> Node ('|', l, r)
+    )
+  | Node (v, l, r) -> Node (v, distrib l, distrib r)
+
+let () = print_endline ""
+let () = print_endline "CNF"
+
+
+let btree_to_RPN_app (btree: char btree):string = 
+  let rec btree_to_RPN_app_rec btree =
+  match btree with
+  | Node ('|', _, _) -> (let (suite, nbr) = count_or btree in (suite ^ String.make (nbr-1) '|'))
+  | Node ('&', _, _) -> (let (suite, nbr) = count_and btree in (suite ^ String.make (nbr-1) '&'))
+  | Node (v, l, r) ->
+      (btree_to_RPN_app_rec r) ^
+      (btree_to_RPN_app_rec l) ^
+      (String.make 1 v)
+  | Empty -> ""
+
+and count_or btree = match btree with
+| Node ('|', r, l) -> let ls, ln = count_or l in let rs, rn = count_or r in(ls ^ rs, ln + rn)
+| _ -> (btree_to_RPN_app_rec btree, 1)
+
+and count_and btree = match btree with
+| Node ('&', r, l) -> let ls, ln = count_and l in let rs, rn = count_and r in(ls ^ rs, ln + rn)
+| _ -> (btree_to_RPN_app_rec btree, 1)
+
+
+  in btree_to_RPN_app_rec btree
+
+let cnf str: string = btree_to_RPN_app (distrib (btree_construct (nnf str)))
+
+
+let test = "AB=CD=|"      (* (A=B) | (C=D) *)
+let () = print_truth (test)
+let () = print_truth(cnf test)
 
 
 
 
+let sat (formula: string) = 
+  let arg = sort_string (find_unique (find_letter formula)) in
 
+  let rec sat_rec i =
+    if i < 1 lsl String.length arg
+    then (
+      let bin = int_to_bin_str (Int32.of_int i) (String.length arg) in if (rev (calc bin arg formula)) = true then true else
+      sat_rec (i + 1))
+    else
+      false
 
+      in print_bool (sat_rec 0)
 
+let () = print_endline ""
+let () = print_endline "SAT"
 
+let test = "AB=CD=|"      (* (A=B) | (C=D) *)
+let () = print_endline (test)
+let () = sat (test)
 
+(* Tests RPN pour le SAT *)
 
+let tests = [
+  "AA!&";        (* A ∧ B *)
+  "AB|";        (* A ∨ B *)
+  "A!";         (* ¬A *)
+  "AB>";        (* A → B *)
+  "AB^";        (* A ⊕ B *)
+  "AB=";        (* A ↔ B *)
 
+  "AB&!";       (* ¬(A ∧ B) *)
+  "AB|C&";      (* A ∨ (B ∧ C) *)
+  "AB>!";       (* ¬(A → B) *)
+  "AB=CD=|";    (* (A ↔ B) ∨ (C ↔ D) *)
 
+  "AB&C|!";     (* ¬((A ∧ B) ∨ C) *)
+  "AB|C>=";     (* (A ∨ B) ↔ (C → ?) *)
+]
 
-
-
-
-
-
+let () =
+  List.iter (fun test ->
+    print_string ("Test: " ^ test);
+    sat test;
+    print_endline ""
+  ) tests
 
 
 
