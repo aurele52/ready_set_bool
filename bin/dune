@@ -1,4 +1,0 @@
-(executable
- (public_name ready_set_bool)
- (name main)
- (libraries ready_set_bool))

@@ -1,8 +1,0 @@
-lib: [
-  "_build/install/default/lib/ready_set_bool/META"
-  "_build/install/default/lib/ready_set_bool/dune-package"
-  "_build/install/default/lib/ready_set_bool/opam"
-]
-bin: [
-  "_build/install/default/bin/ready_set_bool"
-]
